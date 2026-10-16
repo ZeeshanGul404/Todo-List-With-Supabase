@@ -1,7 +1,6 @@
 // Add your Supabase project URL and anon key to enable cloud sync.
 const SUPABASE_URL = "https://ecwmhvslczublwnrbjas.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_f8pgwM7-KFcpBwnud0hX5g_knOYVAJh";
-const STORAGE_KEY = "daymark-tasks";
 
 const form = document.querySelector("#task-form");
 const input = document.querySelector("#task-input");
@@ -40,35 +39,34 @@ function setStatus(message, isError = false) {
   statusLabel.classList.toggle("is-error", isError);
 }
 
-function saveLocalTasks() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
-}
-
 async function loadTasks() {
-  if (hasSupabaseConfig() && window.supabase) {
-    supabaseClient = window.supabase.createClient(
-      SUPABASE_URL,
-      SUPABASE_ANON_KEY,
-    );
-    const { data, error } = await supabaseClient
-      .from("todos")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) {
-      setStatus("Supabase connection failed", true);
-      console.error("Could not load tasks:", error.message);
-      return;
-    }
-    tasks = data;
-    setStatus("Synced with Supabase");
-  } else {
-    try {
-      tasks = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-    } catch {
-      tasks = [];
-    }
-    setStatus("Saved on this device");
+  if (!hasSupabaseConfig()) {
+    setStatus("Supabase configuration is missing", true);
+    console.error("Could not load tasks: Supabase configuration is missing.");
+    return;
   }
+
+  if (!window.supabase) {
+    setStatus("Supabase library unavailable", true);
+    console.error("Could not load tasks: Supabase library is unavailable.");
+    return;
+  }
+
+  supabaseClient = window.supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY,
+  );
+  const { data, error } = await supabaseClient
+    .from("todos")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) {
+    setStatus("Supabase connection failed", true);
+    console.error("Could not load tasks:", error.message);
+    return;
+  }
+  tasks = data;
+  setStatus("Synced with Supabase");
   renderTasks();
 }
 
@@ -123,51 +121,40 @@ function renderTasks() {
 }
 
 async function addTask(title) {
-  if (supabaseClient) {
-    const { data, error } = await supabaseClient
-      .from("todos")
-      .insert({ title, is_complete: false })
-      .select()
-      .single();
-    if (error) throw error;
-    tasks.unshift(data);
-  } else {
-    tasks.unshift({ id: crypto.randomUUID(), title, is_complete: false });
-    saveLocalTasks();
-  }
+  const { data, error } = await supabaseClient
+    .from("todos")
+    .insert({ title, is_complete: false })
+    .select()
+    .single();
+  if (error) throw error;
+  tasks.unshift(data);
   renderTasks();
 }
 
 async function toggleTask(task) {
   const isComplete = !task.is_complete;
-  if (supabaseClient) {
-    const { error } = await supabaseClient
-      .from("todos")
-      .update({ is_complete: isComplete })
-      .eq("id", task.id);
-    if (error) {
-      setStatus("Could not update task", true);
-      return;
-    }
+  const { error } = await supabaseClient
+    .from("todos")
+    .update({ is_complete: isComplete })
+    .eq("id", task.id);
+  if (error) {
+    setStatus("Could not update task", true);
+    return;
   }
   task.is_complete = isComplete;
-  if (!supabaseClient) saveLocalTasks();
   renderTasks();
 }
 
 async function removeTask(task) {
-  if (supabaseClient) {
-    const { error } = await supabaseClient
-      .from("todos")
-      .delete()
-      .eq("id", task.id);
-    if (error) {
-      setStatus("Could not remove task", true);
-      return;
-    }
+  const { error } = await supabaseClient
+    .from("todos")
+    .delete()
+    .eq("id", task.id);
+  if (error) {
+    setStatus("Could not remove task", true);
+    return;
   }
   tasks = tasks.filter((item) => item.id !== task.id);
-  if (!supabaseClient) saveLocalTasks();
   renderTasks();
 }
 
@@ -177,18 +164,15 @@ async function clearTasks() {
     !window.confirm("Remove every task? This cannot be undone.")
   )
     return;
-  if (supabaseClient) {
-    const { error } = await supabaseClient
-      .from("todos")
-      .delete()
-      .not("id", "is", null);
-    if (error) {
-      setStatus("Could not clear tasks", true);
-      return;
-    }
+  const { error } = await supabaseClient
+    .from("todos")
+    .delete()
+    .not("id", "is", null);
+  if (error) {
+    setStatus("Could not clear tasks", true);
+    return;
   }
   tasks = [];
-  if (!supabaseClient) saveLocalTasks();
   renderTasks();
 }
 
@@ -200,7 +184,7 @@ form.addEventListener("submit", async (event) => {
     await addTask(title);
     input.value = "";
     input.focus();
-    if (supabaseClient) setStatus("Synced with Supabase");
+    setStatus("Synced with Supabase");
   } catch (error) {
     setStatus("Could not add task", true);
     console.error("Could not add task:", error.message);
