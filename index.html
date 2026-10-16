@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f3f5ef" />
+    <title>Daymark | To-do list</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <a class="wordmark" href="#" aria-label="Daymark home">
+          <span class="wordmark-mark" aria-hidden="true">D</span>
+          daymark
+        </a>
+        <p class="today-label" id="today-label"></p>
+      </header>
+
+      <section class="todo-panel" aria-labelledby="page-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">YOUR PERSONAL SPACE</p>
+            <h1 id="page-title">A little progress<br />goes a long way.</h1>
+          </div>
+          <div class="progress-stamp" aria-hidden="true">
+            <span class="stamp-spark">*</span>
+            <span>one thing<br />at a time</span>
+          </div>
+        </div>
+
+        <form class="task-form" id="task-form">
+          <label class="visually-hidden" for="task-input">Add a task</label>
+          <input
+            id="task-input"
+            name="task"
+            type="text"
+            maxlength="200"
+            placeholder="What needs doing?"
+            autocomplete="off"
+            required
+          />
+          <button class="add-button" type="submit">
+            <span aria-hidden="true">+</span> Add task
+          </button>
+        </form>
+
+        <div class="list-toolbar">
+          <div class="filter-tabs" role="group" aria-label="Filter tasks">
+            <button
+              class="filter-button is-selected"
+              type="button"
+              data-filter="all"
+              aria-pressed="true"
+            >
+              All
+            </button>
+            <button
+              class="filter-button"
+              type="button"
+              data-filter="active"
+              aria-pressed="false"
+            >
+              Active
+            </button>
+            <button
+              class="filter-button"
+              type="button"
+              data-filter="completed"
+              aria-pressed="false"
+            >
+              Completed
+            </button>
+          </div>
+          <button class="clear-button" id="clear-button" type="button" disabled>
+            Clear all
+          </button>
+        </div>
+
+        <ul class="task-list" id="task-list" aria-live="polite"></ul>
+        <div class="empty-state" id="empty-state">
+          <span class="empty-mark" aria-hidden="true">✓</span>
+          <p id="empty-message">
+            Nothing on your list yet. Add a task to get started.
+          </p>
+        </div>
+
+        <footer class="list-footer">
+          <span id="task-count">0 tasks</span>
+          <span class="storage-status" id="storage-status" role="status"
+            >Starting...</span
+          >
+        </footer>
+      </section>
+
+      <p class="page-note">Make room for what matters.</p>
+    </main>
+  </body>
+</html>
