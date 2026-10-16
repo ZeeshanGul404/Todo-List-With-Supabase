@@ -179,7 +179,11 @@ async function clearTasks() {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   const title = input.value.trim();
-  if (!title) return;
+  if (!title) {
+    setStatus("Please enter a task", true);
+    input.focus();
+    return;
+  }
   try {
     await addTask(title);
     input.value = "";
