@@ -4,43 +4,99 @@ const SUPABASE_ANON_KEY = "sb_publishable_f8pgwM7-KFcpBwnud0hX5g_knOYVAJh";
 
 const form = document.querySelector("#task-form");
 const input = document.querySelector("#task-input");
-const list = document.querySelector("#task-list");
+const taskList = document.querySelector("#task-list");
 const emptyState = document.querySelector("#empty-state");
 const emptyMessage = document.querySelector("#empty-message");
-const countLabel = document.querySelector("#task-count");
-const statusLabel = document.querySelector("#storage-status");
+const taskCount = document.querySelector("#task-count");
+const storageStatus = document.querySelector("#storage-status");
 const clearButton = document.querySelector("#clear-button");
 const filterButtons = document.querySelectorAll(".filter-button");
 
 let tasks = [];
-let activeFilter = "all";
-let supabaseClient = null;
+let currentFilter = "all";
+let supabaseClient;
 
-document.querySelector("#today-label").textContent = new Intl.DateTimeFormat(
+document.querySelector("#today-label").textContent = new Date().toLocaleDateString(
   "en",
   {
     weekday: "long",
     month: "long",
     day: "numeric",
   },
-).format(new Date());
+);
 
-function hasSupabaseConfig() {
-  return (
-    SUPABASE_URL.startsWith("https://") &&
-    !SUPABASE_URL.includes("YOUR_") &&
-    SUPABASE_ANON_KEY.length > 20 &&
-    !SUPABASE_ANON_KEY.includes("YOUR_")
-  );
+function setStatus(message, isError) {
+  storageStatus.textContent = message;
+  storageStatus.classList.toggle("is-error", Boolean(isError));
 }
 
-function setStatus(message, isError = false) {
-  statusLabel.textContent = message;
-  statusLabel.classList.toggle("is-error", isError);
+function showTasks() {
+  let visibleTasks = tasks;
+
+  if (currentFilter === "active") {
+    visibleTasks = tasks.filter((task) => !task.is_complete);
+  } else if (currentFilter === "completed") {
+    visibleTasks = tasks.filter((task) => task.is_complete);
+  }
+
+  taskList.replaceChildren();
+
+  visibleTasks.forEach((task) => {
+    const item = document.createElement("li");
+    item.className = "task-item";
+
+    if (task.is_complete) {
+      item.classList.add("is-complete");
+    }
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "task-checkbox";
+    checkbox.checked = task.is_complete;
+    checkbox.setAttribute(
+      "aria-label",
+      `Mark ${task.title} ${task.is_complete ? "active" : "complete"}`,
+    );
+    checkbox.addEventListener("change", () => toggleTask(task));
+
+    const title = document.createElement("span");
+    title.className = "task-title";
+    title.textContent = task.title;
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "remove-button";
+    removeButton.textContent = "Remove";
+    removeButton.title = "Remove task";
+    removeButton.setAttribute("aria-label", `Remove ${task.title}`);
+    removeButton.addEventListener("click", () => removeTask(task));
+
+    item.append(checkbox, title, removeButton);
+    taskList.append(item);
+  });
+
+  const remainingTasks = tasks.filter((task) => !task.is_complete).length;
+  const taskWord = remainingTasks === 1 ? "task" : "tasks";
+  taskCount.textContent = `${remainingTasks} ${taskWord} left`;
+
+  clearButton.disabled = tasks.length === 0;
+  emptyState.hidden = visibleTasks.length > 0;
+
+  if (tasks.length > 0 && visibleTasks.length === 0) {
+    emptyMessage.textContent = "No tasks in this view.";
+  } else {
+    emptyMessage.textContent =
+      "Nothing on your list yet. Add a task to get started.";
+  }
 }
 
 async function loadTasks() {
-  if (!hasSupabaseConfig()) {
+  if (
+    !SUPABASE_URL.startsWith("https://") ||
+    SUPABASE_URL.includes("YOUR_") ||
+    SUPABASE_ANON_KEY.length < 20 ||
+    SUPABASE_ANON_KEY.includes("YOUR_")
+  ) {
     setStatus("Supabase configuration is missing", true);
     console.error("Could not load tasks: Supabase configuration is missing.");
     return;
@@ -56,79 +112,36 @@ async function loadTasks() {
     SUPABASE_URL,
     SUPABASE_ANON_KEY,
   );
+
   const { data, error } = await supabaseClient
     .from("todos")
     .select("*")
     .order("created_at", { ascending: false });
+
   if (error) {
     setStatus("Supabase connection failed", true);
     console.error("Could not load tasks:", error.message);
     return;
   }
+
   tasks = data;
   setStatus("Synced with Supabase");
-  renderTasks();
-}
-
-function renderTasks() {
-  const visibleTasks = tasks.filter((task) => {
-    if (activeFilter === "active") return !task.is_complete;
-    if (activeFilter === "completed") return task.is_complete;
-    return true;
-  });
-
-  list.replaceChildren();
-  for (const task of visibleTasks) {
-    const item = document.createElement("li");
-    item.className = `task-item${task.is_complete ? " is-complete" : ""}`;
-
-    const checkbox = document.createElement("input");
-    checkbox.className = "task-checkbox";
-    checkbox.type = "checkbox";
-    checkbox.checked = task.is_complete;
-    checkbox.setAttribute(
-      "aria-label",
-      `Mark ${task.title} ${task.is_complete ? "active" : "complete"}`,
-    );
-    checkbox.addEventListener("change", () => toggleTask(task));
-
-    const title = document.createElement("span");
-    title.className = "task-title";
-    title.textContent = task.title;
-
-    const removeButton = document.createElement("button");
-    removeButton.className = "remove-button";
-    removeButton.type = "button";
-    removeButton.textContent = "Remove";
-    removeButton.title = "Remove task";
-    removeButton.setAttribute("aria-label", `Remove ${task.title}`);
-    removeButton.addEventListener("click", () => removeTask(task));
-
-    item.append(checkbox, title, removeButton);
-    list.append(item);
-  }
-
-  const remaining = tasks.filter((task) => !task.is_complete).length;
-  countLabel.textContent = `${remaining} ${remaining === 1 ? "task" : "tasks"} left`;
-  clearButton.disabled = tasks.length === 0;
-  emptyState.hidden = visibleTasks.length > 0;
-  if (tasks.length > 0 && visibleTasks.length === 0) {
-    emptyMessage.textContent = "No tasks in this view.";
-  } else {
-    emptyMessage.textContent =
-      "Nothing on your list yet. Add a task to get started.";
-  }
+  showTasks();
 }
 
 async function addTask(title) {
   const { data, error } = await supabaseClient
     .from("todos")
-    .insert({ title, is_complete: false })
+    .insert({ title: title, is_complete: false })
     .select()
     .single();
-  if (error) throw error;
+
+  if (error) {
+    throw error;
+  }
+
   tasks.unshift(data);
-  renderTasks();
+  showTasks();
 }
 
 async function toggleTask(task) {
@@ -137,12 +150,15 @@ async function toggleTask(task) {
     .from("todos")
     .update({ is_complete: isComplete })
     .eq("id", task.id);
+
   if (error) {
     setStatus("Could not update task", true);
+    console.error("Could not update task:", error.message);
     return;
   }
+
   task.is_complete = isComplete;
-  renderTasks();
+  showTasks();
 }
 
 async function removeTask(task) {
@@ -150,40 +166,56 @@ async function removeTask(task) {
     .from("todos")
     .delete()
     .eq("id", task.id);
+
   if (error) {
     setStatus("Could not remove task", true);
+    console.error("Could not remove task:", error.message);
     return;
   }
-  tasks = tasks.filter((item) => item.id !== task.id);
-  renderTasks();
+
+  tasks = tasks.filter((savedTask) => savedTask.id !== task.id);
+  showTasks();
 }
 
 async function clearTasks() {
-  if (
-    tasks.length === 0 ||
-    !window.confirm("Remove every task? This cannot be undone.")
-  )
+  if (tasks.length === 0) {
     return;
+  }
+
+  const shouldClear = window.confirm(
+    "Remove every task? This cannot be undone.",
+  );
+
+  if (!shouldClear) {
+    return;
+  }
+
   const { error } = await supabaseClient
     .from("todos")
     .delete()
     .not("id", "is", null);
+
   if (error) {
     setStatus("Could not clear tasks", true);
+    console.error("Could not clear tasks:", error.message);
     return;
   }
+
   tasks = [];
-  renderTasks();
+  showTasks();
 }
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+
   const title = input.value.trim();
-  if (!title) {
+
+  if (title === "") {
     setStatus("Please enter a task", true);
     input.focus();
     return;
   }
+
   try {
     await addTask(title);
     input.value = "";
@@ -199,13 +231,15 @@ clearButton.addEventListener("click", clearTasks);
 
 filterButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    activeFilter = button.dataset.filter;
+    currentFilter = button.dataset.filter;
+
     filterButtons.forEach((filterButton) => {
-      const selected = filterButton === button;
-      filterButton.classList.toggle("is-selected", selected);
-      filterButton.setAttribute("aria-pressed", String(selected));
+      const isSelected = filterButton === button;
+      filterButton.classList.toggle("is-selected", isSelected);
+      filterButton.setAttribute("aria-pressed", String(isSelected));
     });
-    renderTasks();
+
+    showTasks();
   });
 });
 
